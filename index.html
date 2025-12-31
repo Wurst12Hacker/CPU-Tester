@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU-Tester</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #output {
+            margin-top: 20px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>CPU-Tester</h1>
+    <form id="cpuForm">
+        <label for="computation">Rechenleistung (Anzahl der Operationen pro Test):</label>
+        <input type="number" id="computation" min="1" value="10000000" required>
+
+        <label for="repetitions">Wiederholungen (Anzahl oder 'infinity' für unendlich):</label>
+        <input type="text" id="repetitions" value="infinity" required>
+
+        <label for="interval">Zeitabstand (in Millisekunden):</label>
+        <input type="number" id="interval" min="1" value="100" required>
+
+        <button type="button" id="startBtn">Start Test</button>
+        <button type="button" id="stopBtn" style="display:none;">Stop Test</button>
+    </form>
+
+    <div id="output"></div>
+
+    <script>
+        let intervalId;
+        let repetitionCount = 0;
+        let maxRepetitions = 0;
+        let isInfinite = false;
+        let worker;
+        let workerBusy = false;
+        let startTime;
+
+        function runTest() {
+            if (workerBusy) return;
+            const computation = parseInt(document.getElementById('computation').value);
+            startTime = performance.now();
+            worker.postMessage(computation);
+            workerBusy = true;
+        }
+
+        function startTest() {
+            const repetitionsInput = document.getElementById('repetitions').value.toLowerCase();
+            if (repetitionsInput === 'infinity') {
+                isInfinite = true;
+            } else {
+                maxRepetitions = parseInt(repetitionsInput);
+                isInfinite = false;
+            }
+
+            const interval = parseInt(document.getElementById('interval').value);
+
+            repetitionCount = 0;
+            document.getElementById('output').textContent = 'Test gestartet...\n';
+
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'inline';
+
+            worker = new Worker('worker.js');
+            worker.onmessage = function(e) {
+                const result = e.data;
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                repetitionCount++;
+                document.getElementById('output').textContent += `Test ${repetitionCount}: ${duration.toFixed(2)} ms\n`;
+                workerBusy = false;
+                if (!isInfinite && repetitionCount >= maxRepetitions) {
+                    stopTest();
+                }
+            };
+
+            intervalId = setInterval(runTest, interval);
+        }
+
+        function stopTest() {
+            clearInterval(intervalId);
+            if (worker) {
+                worker.terminate();
+                worker = null;
+            }
+            workerBusy = false;
+            document.getElementById('startBtn').style.display = 'inline';
+            document.getElementById('stopBtn').style.display = 'none';
+            document.getElementById('output').textContent += 'Test gestoppt.\n';
+        }
+
+        document.getElementById('startBtn').addEventListener('click', startTest);
+        document.getElementById('stopBtn').addEventListener('click', stopTest);
+    </script>
+</body>
+</html>
